@@ -1,18 +1,24 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
 import { Dropdown } from 'primereact/dropdown';
 import { AutoComplete } from 'primereact/autocomplete';
 import { Toast } from 'primereact/toast';
-import { buscarEstudiantesMatricula, descargarBoletin } from '../../../Servicios/ReporteServicios/reportesService';
-
-// Expresión regular para caracteres en español (letras, espacios, tildes, ñ/Ñ)
-const REGEX_SOLO_LETRAS_ESPANOL = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
+import {
+  buscarEstudiantesMatricula,
+  buscarSeccionesPorGrado,
+  descargarBoletin,
+} from '../../../Servicios/ReporteServicios/reportesService';
+import { getGrados } from '../../../Servicios/GradoServicios/gradoService';
 
 export const ReporteBoletin = () => {
   const toast = useRef(null);
   const [loading, setLoading] = useState(false);
   const [loadingEstudianteAuto, setLoadingEstudianteAuto] = useState(false);
+  const [loadingGrados, setLoadingGrados] = useState(false);
+  const [loadingSecciones, setLoadingSecciones] = useState(false);
+  const [grados, setGrados] = useState([]);
+  const [secciones, setSecciones] = useState([]);
   const anioActual = new Date().getFullYear();
 
   // Combo de Años Lectivos dinámico desde 1990 hasta el año actual
@@ -26,17 +32,39 @@ export const ReporteBoletin = () => {
 
   // Estado unificado e inmutable del formulario
   const [formData, setFormData] = useState({
+    modalidad: 'individual',
     tipoReporte: null,
     periodoLectivo: anioActual,
     numeroPeriodo: null,
     codigoMined: '',
     idPersona: null,
+    idGrado: null,
+    seccion: null,
   });
+
+  const opcionesModalidad = useMemo(() => [
+    { label: 'Boletín por estudiante', value: 'individual' },
+    { label: 'Boletín final masivo por grado', value: 'masivo' },
+  ], []);
 
   const opcionesTipoReporte = useMemo(() => [
     { label: 'Boletín Parcial', value: 'parcial' },
     { label: 'Boletín Final', value: 'final' },
   ], []);
+
+  const opcionesGrados = useMemo(
+    () =>
+      grados.map((grado) => ({
+        label: grado.nombreGrado || grado.nombre || grado.descripcion || 'Grado sin nombre',
+        value: grado.idGrado ?? grado.idgrado ?? grado.id,
+      })),
+    [grados]
+  );
+
+  const opcionesSecciones = useMemo(
+    () => secciones.map((seccion) => ({ label: seccion, value: seccion })),
+    [secciones]
+  );
 
   const opcionesPeriodos = useMemo(() => [
     { label: 'I PARCIAL', value: 1 },
@@ -50,15 +78,74 @@ export const ReporteBoletin = () => {
   const [busquedaEstudianteInput, setBusquedaEstudianteInput] = useState('');
   const [sugerenciasEstudiantes, setSugerenciasEstudiantes] = useState([]);
 
+  useEffect(() => {
+    let active = true;
+    const cargarGrados = async () => {
+      setLoadingGrados(true);
+      try {
+        const gradosData = await getGrados();
+        if (active) setGrados(gradosData);
+      } catch (error) {
+        if (active) {
+          toast.current?.show({
+            severity: 'error',
+            summary: 'Error al cargar grados',
+            detail: error.message || 'No se pudieron cargar los grados.',
+            life: 4000,
+          });
+        }
+      } finally {
+        if (active) setLoadingGrados(false);
+      }
+    };
+
+    cargarGrados();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    if (formData.modalidad !== 'masivo' || !formData.idGrado) {
+      setSecciones([]);
+      setLoadingSecciones(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    const cargarSecciones = async () => {
+      setLoadingSecciones(true);
+      try {
+        const seccionesData = await buscarSeccionesPorGrado(formData.idGrado);
+        if (active) setSecciones(seccionesData);
+      } catch (error) {
+        if (active) {
+          setSecciones([]);
+          toast.current?.show({
+            severity: 'error',
+            summary: 'Error al cargar secciones',
+            detail: error.message || 'No se pudieron cargar las secciones del grado.',
+            life: 4000,
+          });
+        }
+      } finally {
+        if (active) setLoadingSecciones(false);
+      }
+    };
+
+    cargarSecciones();
+    return () => {
+      active = false;
+    };
+  }, [formData.modalidad, formData.idGrado]);
+
   // Handler para inputs primitivos de texto con validación de tildes
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
     const strVal = value ?? '';
-
-    if (name === 'codigoMined' && strVal !== '' && !REGEX_SOLO_LETRAS_ESPANOL.test(strVal)) {
-      // Si el código MINED solo permite ciertos caracteres, ajusta la regex aquí
-    }
-
     setFormData((prev) => ({ ...prev, [name]: strVal }));
   }, []);
 
@@ -67,6 +154,21 @@ export const ReporteBoletin = () => {
     const valorPrimitivo = typeof value === 'object' && value !== null ? value.value : value;
     setFormData((prev) => ({ ...prev, [name]: valorPrimitivo }));
   }, []);
+
+  const handleModalidadChange = (modalidad) => {
+    setFormData((prev) => ({
+      ...prev,
+      modalidad,
+      tipoReporte: null,
+      numeroPeriodo: null,
+      codigoMined: '',
+      idPersona: null,
+      idGrado: null,
+      seccion: null,
+    }));
+    setBusquedaEstudianteInput('');
+    setSugerenciasEstudiantes([]);
+  };
 
   // Búsqueda en la API mediante AutoComplete
   const handleCompleteEstudiantes = async (e) => {
@@ -118,7 +220,7 @@ export const ReporteBoletin = () => {
     setFormData((prev) => ({
       ...prev,
       idPersona: item.idPersona,
-      codigoMined: item.codigoMined || prev.codigoMined,
+      codigoMined: item.codigoMined || '',
     }));
   };
 
@@ -143,7 +245,7 @@ export const ReporteBoletin = () => {
   const handleGenerarBoletin = async (e) => {
     e.preventDefault();
 
-    if (!formData.tipoReporte) {
+    if (formData.modalidad === 'individual' && !formData.tipoReporte) {
       toast.current?.show({
         severity: 'warn',
         summary: 'Campo requerido',
@@ -152,7 +254,29 @@ export const ReporteBoletin = () => {
       return;
     }
 
-    if (!formData.codigoMined.trim() && !formData.idPersona) {
+    if (formData.modalidad === 'masivo' && !formData.idGrado) {
+      toast.current?.show({
+        severity: 'warn',
+        summary: 'Campo requerido',
+        detail: 'Debe seleccionar el grado para generar los boletines.',
+      });
+      return;
+    }
+
+    if (formData.modalidad === 'masivo' && !formData.seccion) {
+      toast.current?.show({
+        severity: 'warn',
+        summary: 'Campo requerido',
+        detail: 'Debe seleccionar la sección para generar los boletines.',
+      });
+      return;
+    }
+
+    if (
+      formData.modalidad === 'individual' &&
+      !formData.codigoMined.trim() &&
+      !formData.idPersona
+    ) {
       toast.current?.show({
         severity: 'warn',
         summary: 'Campo requerido',
@@ -161,7 +285,11 @@ export const ReporteBoletin = () => {
       return;
     }
 
-    if (formData.tipoReporte === 'parcial' && !formData.numeroPeriodo) {
+    if (
+      formData.modalidad === 'individual' &&
+      formData.tipoReporte === 'parcial' &&
+      !formData.numeroPeriodo
+    ) {
       toast.current?.show({
         severity: 'warn',
         summary: 'Campo requerido',
@@ -173,11 +301,17 @@ export const ReporteBoletin = () => {
     setLoading(true);
     try {
       await descargarBoletin({
-        idPersona: formData.idPersona,
-        codigoMined: formData.codigoMined,
+        modalidad: formData.modalidad,
+        idGrado: formData.modalidad === 'masivo' ? formData.idGrado : undefined,
+        seccion: formData.modalidad === 'masivo' ? formData.seccion : undefined,
+        idPersona: formData.modalidad === 'individual' ? formData.idPersona : undefined,
+        codigoMined: formData.modalidad === 'individual' ? formData.codigoMined : '',
         anioLectivo: formData.periodoLectivo,
-        tipoReporte: formData.tipoReporte,
-        numeroPeriodo: formData.tipoReporte === 'parcial' ? formData.numeroPeriodo : undefined,
+        tipoReporte: formData.modalidad === 'masivo' ? 'final' : formData.tipoReporte,
+        numeroPeriodo:
+          formData.modalidad === 'individual' && formData.tipoReporte === 'parcial'
+            ? formData.numeroPeriodo
+            : undefined,
       });
 
       toast.current?.show({
@@ -213,7 +347,23 @@ export const ReporteBoletin = () => {
       </div>
 
       <form onSubmit={handleGenerarBoletin} className="p-fluid grid">
-        {/* Tipo de boletín */}
+        <div className="col-12 col-md-6 mb-3">
+          <label htmlFor="modalidad" className="font-semibold block mb-2 text-700">
+            Generación
+          </label>
+          <Dropdown
+            id="modalidad"
+            value={formData.modalidad}
+            options={opcionesModalidad}
+            optionLabel="label"
+            optionValue="value"
+            onChange={(e) => handleModalidadChange(e.value)}
+            placeholder="Seleccione cómo generar el boletín"
+          />
+        </div>
+
+        {/* Tipo de boletín individual */}
+        {formData.modalidad === 'individual' && (
         <div className="col-12 col-md-6 mb-3">
           <label htmlFor="tipoReporte" className="font-semibold block mb-2 text-700">
             Tipo de Boletín
@@ -229,9 +379,10 @@ export const ReporteBoletin = () => {
             placeholder="Seleccione el tipo de boletín"
           />
         </div>
+        )}
 
         {/* Período únicamente para boletines parciales */}
-        {formData.tipoReporte === 'parcial' && (
+        {formData.modalidad === 'individual' && formData.tipoReporte === 'parcial' && (
           <div className="col-12 col-md-6 mb-3">
             <label htmlFor="numeroPeriodo" className="font-semibold block mb-2 text-700">
               Período
@@ -267,7 +418,8 @@ export const ReporteBoletin = () => {
           />
         </div>
 
-        {/* Buscador Autocompletado de Estudiantes */}
+        {formData.modalidad === 'individual' ? (
+        <>
         <div className="col-12 mb-3 surface-50 p-3 border-round border-1 surface-border">
           <label htmlFor="autoEstudiante" className="font-bold block mb-2 text-700">
             🔍 Buscar Estudiante Existente (Código MINED o Nombres, ej: '123' o 'William')
@@ -280,9 +432,15 @@ export const ReporteBoletin = () => {
             field="labelEstudiante"
             itemTemplate={estudianteItemTemplate}
             onChange={(e) => {
-              // Permite escribir texto sin romper la selección previa
               const val = e.value;
               setBusquedaEstudianteInput(typeof val === 'string' ? val : val?.labelEstudiante || '');
+              if (typeof val === 'string') {
+                setFormData((prev) => ({
+                  ...prev,
+                  idPersona: null,
+                  codigoMined: '',
+                }));
+              }
             }}
             onSelect={handleSelectEstudiante}
             placeholder="Escriba código MINED o nombre del alumno..."
@@ -306,14 +464,72 @@ export const ReporteBoletin = () => {
             placeholder="Ej. MINED-2026-88"
           />
         </div>
+        </>
+        ) : (
+          <div className="col-12 col-md-6 mb-3">
+            <label htmlFor="idGrado" className="font-semibold block mb-2 text-700">
+              Grado
+            </label>
+            <Dropdown
+              id="idGrado"
+              value={formData.idGrado}
+              options={opcionesGrados}
+              optionLabel="label"
+              optionValue="value"
+              onChange={(e) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  idGrado: e.value,
+                  seccion: null,
+                }));
+                setSecciones([]);
+              }}
+              placeholder={loadingGrados ? 'Cargando grados...' : 'Seleccione el grado'}
+              loading={loadingGrados}
+              disabled={loadingGrados}
+              filter
+            />
+          </div>
+        )}
+
+        {formData.modalidad === 'masivo' && formData.idGrado && (
+          <div className="col-12 col-md-6 mb-3">
+            <label htmlFor="seccion" className="font-semibold block mb-2 text-700">
+              Sección
+            </label>
+            <Dropdown
+              id="seccion"
+              value={formData.seccion}
+              options={opcionesSecciones}
+              optionLabel="label"
+              optionValue="value"
+              onChange={(e) => handleDropdownChange('seccion', e.value)}
+              placeholder={
+                loadingSecciones ? 'Cargando secciones...' : 'Seleccione la sección'
+              }
+              loading={loadingSecciones}
+              disabled={loadingSecciones || secciones.length === 0}
+            />
+            {!loadingSecciones && secciones.length === 0 && (
+              <small className="p-error block mt-1">
+                No hay secciones disponibles para este grado.
+              </small>
+            )}
+          </div>
+        )}
 
         {/* Botón de Envío */}
         <div className="col-12 flex justify-content-end gap-2 mt-2">
           <Button
             type="submit"
-            label="Generar Boletín"
+            label={formData.modalidad === 'masivo' ? 'Generar Boletines del Grado' : 'Generar Boletín'}
             icon="pi pi-file-pdf"
             loading={loading}
+            disabled={
+              loading ||
+              (formData.modalidad === 'masivo' &&
+                (loadingGrados || loadingSecciones || !formData.seccion))
+            }
             className="p-button-primary font-bold"
           />
         </div>

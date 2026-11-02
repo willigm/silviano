@@ -14,6 +14,15 @@ export const buscarEstudiantesMatricula = async (search) => {
   return Array.isArray(data) ? data : [];
 };
 
+export const buscarSeccionesPorGrado = async (idGrado) => {
+  if (!idGrado) throw new Error('Debe seleccionar un grado para buscar sus secciones.');
+
+  const { data } = await api.get(
+    `/estudiante-app/salones/secciones/${encodeURIComponent(idGrado)}`
+  );
+  return Array.isArray(data) ? data : [];
+};
+
 /**
  * Solicita la generación y descarga del boletín académico en PDF
  * POST /reportes/descargar (Proxy a Jaspersoft API v2)
@@ -21,34 +30,59 @@ export const buscarEstudiantesMatricula = async (search) => {
  * @param {Object} payload 
  * @param {number|string} payload.anioLectivo - Año lectivo (panio_lectivo)
  * @param {number|string} payload.idPersona - ID de la persona (pidpersona)
+ * @param {number|string} payload.idGrado - ID del grado para boletín masivo (pidgrado)
+ * @param {string} payload.seccion - Sección del grado para boletín masivo (pseccion)
  * @param {string} payload.codigoMined - Código MINED (pcodigo_mined)
  * @param {'parcial'|'final'} payload.tipoReporte - Tipo de boletín a generar
+ * @param {'individual'|'masivo'} payload.modalidad - Alcance del reporte
  * @param {number|string} payload.numeroPeriodo - Período requerido por el boletín parcial
  * @returns {Promise<Blob>}
  */
 export const descargarBoletin = async ({
   anioLectivo,
   idPersona,
+  idGrado,
+  seccion,
   codigoMined,
   tipoReporte = 'final',
+  modalidad = 'individual',
   numeroPeriodo,
 }) => {
   try {
     const esParcial = tipoReporte === 'parcial';
+    if (
+      modalidad === 'masivo' &&
+      (idGrado === null || idGrado === undefined || idGrado === '')
+    ) {
+      throw new Error('Debe seleccionar un grado para generar los boletines.');
+    }
+    if (modalidad === 'masivo' && !String(seccion || '').trim()) {
+      throw new Error('Debe seleccionar una sección para generar los boletines.');
+    }
+
     const parametros = {
       panio_lectivo: anioLectivo ? Number(anioLectivo) : null,
-      pidpersona: idPersona ? Number(idPersona) : null,
-      pcodigo_mined: codigoMined ? codigoMined.trim() : '',
     };
 
-    if (esParcial) {
+    if (modalidad === 'masivo') {
+      parametros.pgrado = Number(idGrado);
+      parametros.pseccion = String(seccion).trim();
+    } else {
+      parametros.pidpersona = idPersona ? Number(idPersona) : null;
+      parametros.pcodigo_mined = codigoMined ? codigoMined.trim() : '';
+    }
+
+    if (esParcial && modalidad === 'individual') {
       parametros.pnumero_periodo = numeroPeriodo ? Number(numeroPeriodo) : null;
     }
 
     const response = await api.post(
       '/reportes/descargar',
       {
-        nombrePlantilla: esParcial ? 'Boletin_Individual_Silviano' : 'Boletin_Silviano_final',
+        nombrePlantilla:
+          modalidad === 'masivo' || !esParcial
+            ? 'Boletin_Silviano_final'
+            : 'Boletin_Individual_Silviano',
         formato: 'PDF',
         parametros,
       },
@@ -63,7 +97,10 @@ export const descargarBoletin = async ({
     const link = document.createElement('a');
     link.href = url;
 
-    const identificador = codigoMined || idPersona || 'estudiante';
+    const identificador =
+      modalidad === 'masivo'
+        ? `grado_${idGrado}_seccion_${seccion}`
+        : codigoMined || idPersona || 'estudiante';
     link.setAttribute('download', `Boletin_Silviano_${identificador}_${anioLectivo}.pdf`);
 
     document.body.appendChild(link);
