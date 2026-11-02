@@ -14,8 +14,8 @@ import {
 
 // Opciones fijas de turno. Lo que se guarda en la base de datos es "value".
 const OPCIONES_TURNO = [
-    { label: 'MAÑANA', value: 'MAÑANA' },
-    { label: 'TARDE', value: 'TARDE' }
+    { label: 'Matutino', value: 'Matutino' },
+    { label: 'Vespertino', value: 'Vespertino' }
 ];
 
 // Estado inicial del formulario (también se usa para limpiarlo).
@@ -144,7 +144,7 @@ export default function Addsalon({
 
         // El turno solo puede ser una de las opciones del Dropdown.
         if (!OPCIONES_TURNO.some(op => op.value === salonInfo.turno)) {
-            setErrorMessage('Seleccione un turno válido: Mañana o Tarde.');
+            setErrorMessage('Seleccione un turno válido: Matutino o Vespertino.');
             return;
         }
 
