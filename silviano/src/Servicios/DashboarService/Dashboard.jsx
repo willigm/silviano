@@ -90,7 +90,7 @@ const Dashboard = () => {
             );
         }
 
-
+        
         // MEJORES PROMEDIOS PRIMARIA
         if (resultados[1].status === 'fulfilled') {
 
@@ -583,7 +583,7 @@ const Dashboard = () => {
                 </Card>
 
 
-                {/* MEJORES PROMEDIOS DE PRIMARIA */}
+                {/* MEJORES PROMEDIOS DE PRIMARIA 
 
                 {renderPanelPromedios(
                     'Mejores promedios de Primaria',
@@ -592,13 +592,13 @@ const Dashboard = () => {
                 )}
 
 
-                {/* MEJORES PROMEDIOS DE SECUNDARIA */}
+                 MEJORES PROMEDIOS DE SECUNDARIA 
 
                 {renderPanelPromedios(
                     'Mejores promedios de Secundaria',
                     mejoresSecundaria,
                     errorSecundaria
-                )}
+                )} */}
 
             </section>
 
