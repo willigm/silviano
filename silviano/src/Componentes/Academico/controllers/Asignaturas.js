@@ -260,8 +260,8 @@ export default function Asignaturas() {
                     }
                     responsiveLayout="scroll"
                 >
-                    <Column field="nombre" header="nombre" sortable style={{ minWidth: '8rem' }} />
-                    <Column field="codigo" header="Codigo " sortable style={{ minWidth: '9rem' }} />
+                    <Column field="nombre" header="Nombre" sortable style={{ minWidth: '10rem' }} />
+                    <Column field="codigo" header="Codigo" sortable style={{ minWidth: '8rem' }} />
                     <Column header="Acciones" body={actionsBodyTemplate} exportable={false} style={{ minWidth: '10rem', textAlign: 'center' }} />
                 </DataTable>
 
@@ -278,19 +278,6 @@ export default function Asignaturas() {
                     </div>
                 </Fieldset>
             </Card>
-
-            {/* Modal Ver Asignatura */}
-            <Dialog
-                header="Detalle del Expediente"
-                visible={showViewMode}
-                style={{ width: '90vw', maxWidth: '700px' }}
-                onHide={() => {
-                    setShowViewMode(false);
-                    setSelectedAsignatturaId(null);
-                }}
-            >
-                {/*selectedAsignaturateId && <VerAsignatura idAsignatura={selectedAsignaturateId} />*/}
-            </Dialog>
 
             {/* Modal Agregar Asignatura */}
             <Dialog
