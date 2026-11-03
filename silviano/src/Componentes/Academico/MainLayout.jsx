@@ -38,52 +38,39 @@ export const MainLayout = () => {
       roles: ['DIRECTOR'],
     },
     {
-      title: 'Académico',
+      title: 'Académico y Seguridad',
       icon: 'bx bxs-school',
-      roles: ['DIRECTOR', 'SECRETARIA'],
+      roles: ['DIRECTOR', 'SECRETARIA', 'ADMIN', 'ADMINISTRADOR'],
       subMenu: [
-        { label: 'Periodo Evaluativo', path: '/periodos'},
-        { label: 'Estudiantes', path: '/estudiantes' },
-        { label: 'Docentes', path: '/docentes' },
-        { label: 'Tutores', path: '/tutores' },
-        { label: 'Salón', path: '/salon' },
-        { label: 'Grados', path: '/grados' },
-        { label: 'Asignaturas', path: '/asignaturas' },
-        { label: 'Asignación Docente', path: '/asignacionDocente' },
+        { label: 'Periodo Evaluativo', path: '/periodos', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Estudiantes', path: '/estudiantes', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Docentes', path: '/docentes', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Tutores', path: '/tutores', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Salón', path: '/salon', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Grados', path: '/grados', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Asignaturas', path: '/asignaturas', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Asignación Docente', path: '/asignacionDocente', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Gestión de Usuarios', path: '/usuario', roles: ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR'] },
       ],
     },
     {
-      title: 'Pago',
-      icon: 'bx bx-dollar-circle',
-      roles: ['DIRECTOR', 'CAJERO'],
-      subMenu: [{ label: 'Gestión de Cobro', path: '/gestionCobro' }],
-    },
-    {
-      title: 'Matrículas',
+      title: 'Matrículas y Pagos',
       icon: 'bx bx-edit-alt',
-      roles: ['DIRECTOR', 'SECRETARIA'],
+      roles: ['DIRECTOR', 'SECRETARIA', 'CAJERO'],
       subMenu: [
-        { label: 'Nueva Matrícula', path: '/registroMatricula' },
-        { label: 'Listar Matrículas', path: '/matriculas' },
+        { label: 'Gestión de Cobro', path: '/gestionCobro', roles: ['DIRECTOR', 'CAJERO'] },
+        { label: 'Nueva Matrícula', path: '/registroMatricula', roles: ['DIRECTOR', 'SECRETARIA'] },
+        { label: 'Listar Matrículas', path: '/matriculas', roles: ['DIRECTOR', 'SECRETARIA'] },
       ],
     },
     {
-      title: 'Reportes',
-      icon: 'bx bx-line-chart',
-      path: '/reportes',
-      roles: ['DIRECTOR', 'SECRETARIA'],
-    },
-    {
-      title: 'Gestión de Usuarios',
-      icon: 'bx bx-user',
-      path: '/usuario',
-      roles: ['ADMIN', 'ADMINISTRADOR', 'DIRECTOR'],
-    },
-    {
-      title: 'Notas',
+      title: 'Notas y Reportes',
       icon: 'bx bx-notepad',
-      roles: ['DOCENTE'],
-      subMenu: [{ label: 'Gestión Calificaciones', path: '/calificaciones' }],
+      roles: ['DOCENTE', 'ADMIN', 'DIRECTOR', 'SECRETARIA'],
+      subMenu: [
+        { label: 'Gestión Calificaciones', path: '/calificaciones', roles: ['DOCENTE'] },
+        { label: 'Reportes', path: '/reportes', roles: ['DIRECTOR', 'SECRETARIA'] },
+      ],
     },
   ];
 
@@ -99,7 +86,10 @@ export const MainLayout = () => {
           {menuConfig
             .filter((item) => hasAccess(item.roles))
             .map((item) => {
-              const hasSubMenu = Array.isArray(item.subMenu) && item.subMenu.length > 0;
+              const subMenu = item.subMenu?.filter((sub) => hasAccess(sub.roles || item.roles)) || [];
+              if (item.subMenu && subMenu.length === 0) return null;
+
+              const hasSubMenu = subMenu.length > 0;
               const isOpen = openSubmenu === item.title;
 
               return (
@@ -113,7 +103,7 @@ export const MainLayout = () => {
                       </div>
 
                       <ul className="sub-menu">
-                        {item.subMenu.map((sub) => (
+                        {subMenu.map((sub) => (
                           <li key={sub.path}>
                             <Link
                               to={sub.path}
