@@ -193,8 +193,7 @@ export const MatriculaScreenSteps = ({ onSuccess, onCancel }) => {
     requisitos: { ...INITIAL_REQUISITOS },
 
     pagoVerificado: false,
-    numRecibo: '',
-    montoMatricula: 350.00
+    numRecibo: ''
   });
 
   const [matriculaCreada, setMatriculaCreada] = useState(null);
@@ -226,8 +225,7 @@ export const MatriculaScreenSteps = ({ onSuccess, onCancel }) => {
       anioLectivo: ANIO_ACTUAL,
       requisitos: { ...INITIAL_REQUISITOS },
       pagoVerificado: false,
-      numRecibo: '',
-      montoMatricula: 350.00
+      numRecibo: ''
     });
     setActiveIndex(0);
     setMatriculaCreada(null);
@@ -639,7 +637,21 @@ export const MatriculaScreenSteps = ({ onSuccess, onCancel }) => {
     [estadoSolvencia, pagosMatricula]
   );
 
+  const montoMatriculaPagado = useMemo(
+    () => pagosMatricula.reduce((total, pago) => total + Number(pago.totalPagado || 0), 0),
+    [pagosMatricula]
+  );
+
   const handleGuardarMatricula = async () => {
+    if (!Number.isFinite(montoMatriculaPagado) || montoMatriculaPagado <= 0) {
+      toast.current?.show({
+        severity: 'warn',
+        summary: 'Monto pagado no disponible',
+        detail: 'No se encontró un monto pagado válido en el detalle de solvencia.'
+      });
+      return;
+    }
+
     if (!puedeGuardarMatricula) {
       toast.current?.show({
         severity: 'warn',
@@ -651,7 +663,10 @@ export const MatriculaScreenSteps = ({ onSuccess, onCancel }) => {
 
     setLoadingGuardado(true);
     try {
-      const respuesta = await registrarMatriculaCompleta(formData);
+      const respuesta = await registrarMatriculaCompleta({
+        ...formData,
+        montoMatricula: montoMatriculaPagado
+      });
       setMatriculaCreada(respuesta);
 
       toast.current?.show({
@@ -1241,6 +1256,7 @@ export const MatriculaScreenSteps = ({ onSuccess, onCancel }) => {
                   )}
                 </Card>
               </div>
+
             </div>
 
             {!matriculaCreada ? (
@@ -1257,7 +1273,7 @@ export const MatriculaScreenSteps = ({ onSuccess, onCancel }) => {
                     icon="pi pi-save"
                     severity="success"
                     loading={loadingGuardado}
-                    disabled={!puedeGuardarMatricula || loadingGuardado}
+                    disabled={!puedeGuardarMatricula || !Number.isFinite(montoMatriculaPagado) || montoMatriculaPagado <= 0 || loadingGuardado}
                     onClick={handleGuardarMatricula}
                   />
                 </div>
