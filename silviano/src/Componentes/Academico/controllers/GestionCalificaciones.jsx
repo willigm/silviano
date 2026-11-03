@@ -246,9 +246,8 @@ export const GestionCalificaciones = () => {
         asignaturaSeleccionada.idSalon
       );
 
-      // Inicializar estructura con propiedades de validación y conducta
+      // Inicializar estructura con propiedades de validación
       const estudiantesMapeados = data.map((est) => {
-        const conducta = est.conducta == null || est.conducta === '' ? null : Number(est.conducta);
         return {
           ...est,
           idEstudiante: est.idMatricula ?? est.idEstudiante,
@@ -257,7 +256,6 @@ export const GestionCalificaciones = () => {
           nombreCompleto: est.nombreCompletoEstudiante ?? est.nombreCompleto,
           acumulado: est.acumulado ?? null,
           examen: est.examen ?? null,
-          conducta: Number.isFinite(conducta) ? conducta : null,
           errorAcumulado: null,
           errorExamen: null,
           dirty: false
@@ -297,8 +295,12 @@ export const GestionCalificaciones = () => {
       prevEstudiantes.map((est) => {
         if (est.idEstudiante === idEstudiante) {
           const val = nuevoValor ?? null;
-          const acumuladoActual = campo === 'acumulado' ? val : est.acumulado;
-          const examenActual = campo === 'examen' ? val : est.examen;
+          const fueraDeRango =
+            (campo === 'acumulado' && val !== null && (val < 0 || val > 40)) ||
+            (campo === 'examen' && val !== null && (val < 0 || val > 60));
+          const valorAplicado = fueraDeRango ? est[campo] : val;
+          const acumuladoActual = campo === 'acumulado' ? valorAplicado : est.acumulado;
+          const examenActual = campo === 'examen' ? valorAplicado : est.examen;
 
           // Validaciones explícitas de rango
           let errorAcumulado = est.errorAcumulado;
@@ -306,7 +308,7 @@ export const GestionCalificaciones = () => {
 
           if (campo === 'acumulado') {
             if (val !== null && (val < 0 || val > 40)) {
-              errorAcumulado = 'Excede el límite (Máx. 40)';
+              errorAcumulado = 'La nota debe estar entre 0 y 40 puntos.';
             } else {
               errorAcumulado = null;
             }
@@ -314,7 +316,7 @@ export const GestionCalificaciones = () => {
 
           if (campo === 'examen') {
             if (val !== null && (val < 0 || val > 60)) {
-              errorExamen = 'Excede el límite (Máx. 60)';
+              errorExamen = 'La nota debe estar entre 0 y 60 puntos.';
             } else {
               errorExamen = null;
             }
@@ -326,7 +328,7 @@ export const GestionCalificaciones = () => {
 
           return {
             ...est,
-            [campo]: val,
+            [campo]: valorAplicado,
             errorAcumulado,
             errorExamen,
             notaFinal: notaFinalCalculada,
@@ -422,8 +424,7 @@ export const GestionCalificaciones = () => {
         calificaciones: registrosModificados.map((est) => ({
           idMatricula: est.idMatricula ?? est.idEstudiante,
           acumulado: est.acumulado,
-          examen: est.examen,
-          conducta: est.conducta
+          examen: est.examen
         }))
       };
 
@@ -527,23 +528,6 @@ export const GestionCalificaciones = () => {
             {rowData.errorExamen}
           </small>
         )}
-      </div>
-    );
-  };
-
-  const editorConductaTemplate = (rowData) => {
-    return (
-      <div className="flex flex-column align-items-center gap-1 p-1">
-        <InputNumber
-          value={rowData.conducta}
-          onValueChange={(e) => handleNotaFieldChange(rowData.idEstudiante, 'conducta', e.value)}
-          min={0}
-          minFractionDigits={0}
-          maxFractionDigits={0}
-          useGrouping={false}
-          disabled={!permiteEdicion || guardando}
-          className="w-full text-center font-semibold"
-        />
       </div>
     );
   };
@@ -742,7 +726,7 @@ export const GestionCalificaciones = () => {
           value={estudiantes}
           loading={loadingTabla}
           globalFilter={globalFilter}
-          globalFilterFields={['codigoMINED', 'codigoEstudiante', 'nombreCompleto', 'conducta']}
+          globalFilterFields={['codigoMINED', 'codigoEstudiante', 'nombreCompleto']}
           header={headerTabla}
           emptyMessage="No hay datos de estudiantes cargados para la combinación seleccionada."
           responsiveLayout="scroll"
@@ -754,13 +738,13 @@ export const GestionCalificaciones = () => {
           <Column field="nombreCompleto" header="Nombre del Estudiante" style={{ width: '28%' }} sortable />
           <Column
             field="acumulado"
-            header="Acumulado (Máx. 40)"
+            header="Acumulado (0-40)"
             body={editorAcumuladoTemplate}
             style={{ width: '15%', textAlign: 'center' }}
           />
           <Column
             field="examen"
-            header="Examen (Máx. 60)"
+            header="Examen (0-60)"
             body={editorExamenTemplate}
             style={{ width: '15%', textAlign: 'center' }}
           />
@@ -770,12 +754,6 @@ export const GestionCalificaciones = () => {
             body={notaFinalTemplate}
             style={{ width: '12%', textAlign: 'center' }}
             sortable
-          />
-          <Column
-            field="conducta"
-            header="Conducta"
-            body={editorConductaTemplate}
-            style={{ width: '10%', textAlign: 'center' }}
           />
         </DataTable>
       </Card>
